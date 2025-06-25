@@ -21,7 +21,6 @@ if uploaded_file:
 
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
-    # Temporary model for partial dependence
     temp_model = Pipeline([
         ("scaler", StandardScaler()),
         ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))
@@ -55,8 +54,7 @@ if uploaded_file:
 
         except Exception as e:
             st.warning(f"Skipping feature {feature} due to error: {e}")
-
-    # Train final models
+            
     linear_model = None
     rf_model = None
 
@@ -76,7 +74,6 @@ if uploaded_file:
         ])
         rf_model.fit(x_train_nonlinear, y_train)
 
-    # Evaluate on test set
     linear_preds = linear_model.predict(x_test[linear_features]) if linear_model else None
     nonlinear_preds = rf_model.predict(x_test[nonlinear_features]) if rf_model else None
 
