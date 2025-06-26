@@ -162,21 +162,22 @@ if uploaded_file:
         for col in ["銷售成本(原料)", "銷售成本(人工)", "銷售成本(費用)", "銷售成本(報廢)", "銷售成本(其他)"]:
             inputs[col] = st.sidebar.number_input(col, value=0.0, format="%.3f")
 
-        preds = []
+        linear_pred = 0.0
+        rf_pred = 0.0
+
         if models["linear_model"] and models["linear_features"]:
             df_input_lin = pd.DataFrame([{k: inputs[k] for k in models["linear_features"]}])
-            preds.append(models["linear_model"].predict(df_input_lin)[0])
+            linear_pred = models["linear_model"].predict(df_input_lin)[0]
 
         if models["rf_model"] and models["nonlinear_features"]:
             df_input_rf = pd.DataFrame([{k: inputs[k] for k in models["nonlinear_features"]}])
-            preds.append(models["rf_model"].predict(df_input_rf)[0])
+            rf_pred = models["rf_model"].predict(df_input_rf)[0]
 
-        if preds:
-            final_input = np.array(preds).reshape(1, -1)
-            final_pred = models["meta_model"].predict(final_input)[0]
-            st.subheader(f"Predicted 毛利率 (GPM): {final_pred:.4f}")
+        final_input = np.array([[linear_pred, rf_pred]])
+        final_pred = models["meta_model"].predict(final_input)[0]
+        st.subheader(f"Predicted 毛利率 (GPM): {final_pred:.4f}")
 
-            with st.expander("Feedback: Correct the predicted 毛利率 if needed"):
+        with st.expander("Feedback: Correct the predicted 毛利率 if needed"):
                 corrected = st.number_input("Corrected 毛利率 (leave as is if prediction is correct)", value=final_pred,
                                             format="%.4f")
                 if st.button("Submit Correction"):
