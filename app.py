@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
 
-st.title("General Regression Predictor with Feedback & SHAP")
+st.title("General Regression Predictor")
 
 def color_metric(value, metric_type):
     if metric_type in ["mse", "mae"]:
