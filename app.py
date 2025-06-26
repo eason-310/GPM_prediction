@@ -1,26 +1,39 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.inspection import partial_dependence
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import shap
 import warnings
+from scipy.stats import spearmanr
 
 warnings.filterwarnings("ignore")
 
-st.title("Hybrid Model for GPM Prediction")
+st.title("Hybrid Model for GPM Prediction with Feedback Loop")
+
 
 @st.cache_data
 def load_excel(file):
     return pd.read_excel(file)
 
-@st.cache_resource
-def train_models(df):
+
+def spearman_linearity_test(df, features, target, threshold=0.9):
+    linear_features = []
+    nonlinear_features = []
+    for f in features:
+        corr, p = spearmanr(df[f], df[target])
+        if np.abs(corr) >= threshold:
+            linear_features.append(f)
+        else:
+            nonlinear_features.append(f)
+    return linear_features, nonlinear_features
+
+
+def train_and_evaluate(df):
     required_columns = [
         "銷售成本(原料)", "銷售成本(人工)", "銷售成本(費用)",
         "銷售成本(報廢)", "銷售成本(其他)", "毛利率"
@@ -29,64 +42,84 @@ def train_models(df):
         if col not in df.columns:
             raise ValueError(f"Missing column: {col}")
 
-    x = df[required_columns[:-1]].astype(float)
-    y = df["毛利率"].astype(float)
+    features = required_columns[:-1]
+    target = "毛利率"
+
+    x = df[features].astype(float)
+    y = df[target].astype(float)
+
+    linear_features, nonlinear_features = spearman_linearity_test(df, features, target)
 
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
-    temp_model = Pipeline([
-        ("scaler", StandardScaler()),
-        ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))
-    ])
-    temp_model.fit(x_train, y_train)
-
-    linear_features, nonlinear_features = [], []
-
-    for feature in x.columns:
-        try:
-            pd_result = partial_dependence(temp_model.named_steps["regressor"], X=x_test, features=[feature], grid_resolution=100)
-            x_vals = pd_result["grid_values"][0].reshape(-1, 1)
-            y_vals = pd_result["average"][0].reshape(-1, 1)
-
-            linreg = LinearRegression()
-            linreg.fit(x_vals, y_vals)
-            r2 = r2_score(y_vals, linreg.predict(x_vals))
-
-            if r2 >= 0.95:
-                linear_features.append(feature)
-            else:
-                nonlinear_features.append(feature)
-        except:
-            continue
-
-    linear_model = Pipeline([
-        ("scaler", StandardScaler()),
-        ("regressor", LinearRegression())
-    ]) if linear_features else None
-
-    if linear_model:
+    linear_model = None
+    if linear_features:
+        linear_model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", LinearRegression())
+        ])
         linear_model.fit(x_train[linear_features], y_train)
 
-    rf_model = Pipeline([
-        ("scaler", StandardScaler()),
-        ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))
-    ]) if nonlinear_features else None
-
-    if rf_model:
+    rf_model = None
+    if nonlinear_features:
+        rf_model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))
+        ])
         rf_model.fit(x_train[nonlinear_features], y_train)
 
-    linear_preds = linear_model.predict(x_test[linear_features]) if linear_model else None
-    nonlinear_preds = rf_model.predict(x_test[nonlinear_features]) if rf_model else None
+    linear_preds = linear_model.predict(x_test[linear_features]) if linear_model else np.zeros(len(y_test))
+    nonlinear_preds = rf_model.predict(x_test[nonlinear_features]) if rf_model else np.zeros(len(y_test))
 
-    pred_matrix = np.vstack([
-        linear_preds if linear_preds is not None else np.zeros(len(y_test)),
-        nonlinear_preds if nonlinear_preds is not None else np.zeros(len(y_test))
-    ]).T
+    pred_matrix = np.vstack([linear_preds, nonlinear_preds]).T
 
     meta_model = LinearRegression()
     meta_model.fit(pred_matrix, y_test)
 
     final_preds = meta_model.predict(pred_matrix)
+
+    cv = KFold(n_splits=5, shuffle=True, random_state=42)
+
+    def cv_score_func(X, y):
+        scores = []
+        for train_idx, val_idx in cv.split(X):
+            X_tr, X_val = X.iloc[train_idx], X.iloc[val_idx]
+            y_tr, y_val = y.iloc[train_idx], y.iloc[val_idx]
+
+            lm = None
+            if linear_features:
+                lm = Pipeline([
+                    ("scaler", StandardScaler()),
+                    ("regressor", LinearRegression())
+                ])
+                lm.fit(X_tr[linear_features], y_tr)
+
+            rf = None
+            if nonlinear_features:
+                rf = Pipeline([
+                    ("scaler", StandardScaler()),
+                    ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))
+                ])
+                rf.fit(X_tr[nonlinear_features], y_tr)
+
+            lin_pred = lm.predict(X_val[linear_features]) if lm else np.zeros(len(y_val))
+            rf_pred = rf.predict(X_val[nonlinear_features]) if rf else np.zeros(len(y_val))
+
+            pred_mat = np.vstack([lin_pred, rf_pred]).T
+            meta = LinearRegression()
+            meta.fit(pred_mat, y_val)
+            final_p = meta.predict(pred_mat)
+
+            score = r2_score(y_val, final_p)
+            scores.append(score)
+        return np.mean(scores)
+
+    cv_r2 = cv_score_func(x, y)
+
+    base_rf_model = rf_model.named_steps["regressor"] if rf_model else None
+    explainer = None
+    if base_rf_model is not None:
+        explainer = shap.TreeExplainer(base_rf_model)
 
     return {
         "linear_model": linear_model,
@@ -97,24 +130,37 @@ def train_models(df):
         "x_test": x_test,
         "y_test": y_test,
         "final_preds": final_preds,
-        "explainer": shap.Explainer(temp_model.named_steps["regressor"], x_test)
+        "cv_r2": cv_r2,
+        "explainer": explainer
     }
+
+if "corrections" not in st.session_state:
+    st.session_state["corrections"] = pd.DataFrame(columns=[
+        "銷售成本(原料)", "銷售成本(人工)", "銷售成本(費用)",
+        "銷售成本(報廢)", "銷售成本(其他)", "毛利率"
+    ])
 
 uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 
 if uploaded_file:
     try:
         df = load_excel(uploaded_file)
-        models = train_models(df)
 
-        st.subheader("Model Performance")
+        if not st.session_state["corrections"].empty:
+            df = pd.concat([df, st.session_state["corrections"]], ignore_index=True)
+
+        models = train_and_evaluate(df)
+
+        st.subheader("Model Performance (Test set)")
         st.write(f"Mean Squared Error: {mean_squared_error(models['y_test'], models['final_preds']):.4f}")
+        st.write(f"Mean Absolute Error: {mean_absolute_error(models['y_test'], models['final_preds']):.4f}")
         st.write(f"R^2 Score: {r2_score(models['y_test'], models['final_preds']):.4f}")
+        st.write(f"Cross-validated R^2 Score (5-fold): {models['cv_r2']:.4f}")
 
         st.sidebar.header("Input your costs to predict 毛利率 (GPM)")
         inputs = {}
         for col in ["銷售成本(原料)", "銷售成本(人工)", "銷售成本(費用)", "銷售成本(報廢)", "銷售成本(其他)"]:
-            inputs[col] = st.sidebar.number_input(col, value=0.0)
+            inputs[col] = st.sidebar.number_input(col, value=0.0, format="%.3f")
 
         preds = []
         if models["linear_model"] and models["linear_features"]:
@@ -128,15 +174,32 @@ if uploaded_file:
         if preds:
             final_input = np.array(preds).reshape(1, -1)
             final_pred = models["meta_model"].predict(final_input)[0]
-            st.subheader(f"Predicted 毛利率 (GPM): {final_pred:.2f}")
+            st.subheader(f"Predicted 毛利率 (GPM): {final_pred:.4f}")
+
+            with st.expander("Feedback: Correct the predicted 毛利率 if needed"):
+                corrected = st.number_input("Corrected 毛利率 (leave as is if prediction is correct)", value=final_pred,
+                                            format="%.4f")
+                if st.button("Submit Correction"):
+                    new_data = {**inputs, "毛利率": corrected}
+                    st.session_state["corrections"] = pd.concat([
+                        st.session_state["corrections"],
+                        pd.DataFrame([new_data])
+                    ], ignore_index=True)
+                    st.success("Correction submitted! The model will be retrained with your input.")
+                    st.experimental_rerun()
         else:
             st.warning("No valid prediction — check model training or input.")
 
-        with st.expander("Feature Importance (SHAP Summary)"):
-            shap_values = models["explainer"](models["x_test"])
-            #st.set_option("deprecation.showPyplotGlobalUse", False)
-            shap.summary_plot(shap_values, models["x_test"], show=False)
-            st.pyplot()
+        if models["explainer"] is not None:
+            with st.expander("Feature Importance (SHAP Summary)"):
+                shap_values = models["explainer"](models["x_test"])
+                st.set_option("deprecation.showPyplotGlobalUse", False)
+                import matplotlib.pyplot as plt
+
+                plt.figure()
+                shap.summary_plot(shap_values, models["x_test"], show=False)
+                st.pyplot(plt.gcf())
+                plt.clf()
 
     except ValueError as ve:
         st.error(f"Data format issue: {ve}")
