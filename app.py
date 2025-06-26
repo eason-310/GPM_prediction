@@ -13,7 +13,7 @@ from scipy.stats import spearmanr
 
 warnings.filterwarnings("ignore")
 
-st.title("Hybrid Model for GPM Prediction with Feedback Loop")
+st.title("Hybrid Model for GPM Prediction")
 
 
 @st.cache_data
