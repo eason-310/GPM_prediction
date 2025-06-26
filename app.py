@@ -194,3 +194,28 @@ if uploaded_file:
         st.error(f"Unexpected error: {e}")
 else:
     st.info("Please upload an Excel file to begin.")
+def color_metric(value, metric_type):
+    if metric_type == "mse" or metric_type == "mae":
+        if value < 0.01:
+            color = "green"
+        elif value < 0.1:
+            color = "orange"
+        else:
+            color = "red"
+    elif metric_type == "r2":
+        if value > 0.8:
+            color = "green"
+        elif value > 0.2:
+            color = "orange"
+        else:
+            color = "red"
+    elif metric_type == "cv_r2":
+        if value > 0.7:
+            color = "green"
+        elif value > 0.1:
+            color = "orange"
+        else:
+            color = "red"
+    else:
+        color = "black"
+    return f'<span style="color:{color}; font-weight:bold;">{value:.4f}</span>'
