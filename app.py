@@ -97,8 +97,8 @@ if uploaded:
     try:
         df = load_excel(uploaded)
         cols = df.columns.tolist()
-        target = st.selectbox("Select target", cols)
-        features = st.multiselect("Select features", [c for c in cols if c != target])
+        target = st.selectbox("Select target (選擇欲預測項目)", cols)
+        features = st.multiselect("Select features (選擇用於預測項目)", [c for c in cols if c != target])
 
         if features:
             if not st.session_state["corrections"].empty:
