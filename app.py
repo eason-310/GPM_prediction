@@ -130,8 +130,6 @@ uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 if uploaded_file:
     try:
         df = load_excel(uploaded_file)
-        st.subheader("📄 Data Preview")
-        st.dataframe(df.head())
 
         all_columns = df.columns.tolist()
         target_col = st.selectbox("Select target column (what you want to predict)", all_columns)
