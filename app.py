@@ -162,11 +162,12 @@ uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 if uploaded_file:
     try:
         df = load_excel(uploaded_file)
+        models = train_models(df)
 
-        if not st.session_state["corrections"].empty:
-            df = pd.concat([df, st.session_state["corrections"]], ignore_index=True)
-
-        models = train_and_evaluate(df)
+        mse_val = mean_squared_error(models["y_test"], models["final_preds"])
+        mae_val = mean_absolute_error(models["y_test"], models["final_preds"])
+        r2_val = r2_score(models["y_test"], models["final_preds"])
+        cv_r2_val = models["cv_r2"]
 
         st.subheader("Model Performance")
         st.markdown(f"Mean Squared Error: {color_metric(mse_val, 'mse')}", unsafe_allow_html=True)
