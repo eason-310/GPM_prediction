@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
 
-st.title("Hybrid Model")
+st.title("Hybrid Model for GPM Prediction")
 
 @st.cache_data
 def load_excel(file):
