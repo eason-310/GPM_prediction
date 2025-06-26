@@ -24,8 +24,14 @@ def color_metric(value, metric_type):
     return f'<span style="color:{color}; font-weight:bold;">{value:.4f}</span>'
 
 @st.cache_data
-def load_excel(file):
-    return pd.read_excel(file)
+def load_excel(file, transpose=False):
+    df = pd.read_excel(file)
+    if transpose:
+        df = df.T
+        df.columns = df.iloc[0]
+        df = df.drop(df.index[0])
+        df = df.reset_index(drop=True)
+    return df
 
 def spearman_linearity_test(df, features, target, threshold=0.9):
     linear_feats, nonlinear_feats = [], []
@@ -93,9 +99,11 @@ if "corrections" not in st.session_state:
     st.session_state["corrections"] = pd.DataFrame()
 
 uploaded = st.file_uploader("Upload Excel", type=["xlsx"])
+transpose = st.checkbox("資料項目名稱在直行")
+
 if uploaded:
     try:
-        df = load_excel(uploaded)
+        df = load_excel(uploaded, transpose=transpose)
         cols = df.columns.tolist()
         target = st.selectbox("Select target (選擇欲預測項目)", cols)
         features = st.multiselect("Select features (選擇用於預測項目)", [c for c in cols if c != target])
@@ -115,7 +123,7 @@ if uploaded:
             st.markdown(f"MAE: {color_metric(mae,'mae')}", unsafe_allow_html=True)
             st.markdown(f"R²: {color_metric(r2,'r2')}", unsafe_allow_html=True)
             st.markdown(f"CV R²: {color_metric(cv_r2,'cv_r2')}", unsafe_allow_html=True)
-            #st.write(f"Best XGBoost params: {m['meta_model'].get_params()}")
+            st.write(f"Best XGBoost params: {m['meta_model'].get_params()}")
 
             st.sidebar.header("Enter feature values")
             inp = {f: st.sidebar.number_input(f, value=0.0) for f in features}
