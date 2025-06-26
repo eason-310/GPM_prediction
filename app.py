@@ -134,7 +134,7 @@ if uploaded_file:
 
         with st.expander("Feature Importance (SHAP Summary)"):
             shap_values = models["explainer"](models["x_test"])
-            st.set_option("deprecation.showPyplotGlobalUse", False)
+            #st.set_option("deprecation.showPyplotGlobalUse", False)
             shap.summary_plot(shap_values, models["x_test"], show=False)
             st.pyplot()
 
