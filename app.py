@@ -14,7 +14,7 @@ from xgboost import XGBRegressor
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
-st.title("General Hybrid Regression with XGBoost Meta-Model")
+st.title("Hybrid Model Predictor")
 
 def color_metric(value, metric_type):
     if metric_type in ["mse", "mae"]:
