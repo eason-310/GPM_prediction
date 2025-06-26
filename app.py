@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split, cross_val_score, KFold
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
@@ -118,7 +118,7 @@ def train_and_evaluate(df):
             y_tr, y_val = y.iloc[train_idx], y.iloc[val_idx]
 
             lm = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_features else None
-            rf = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100))]) if nonlinear_features else None
+            rf = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))]) if nonlinear_features else None
 
             if lm: lm.fit(x_tr[linear_features], y_tr)
             if rf: rf.fit(x_tr[nonlinear_features], y_tr)
@@ -162,7 +162,12 @@ uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 if uploaded_file:
     try:
         df = load_excel(uploaded_file)
-        models = train_models(df)
+
+        # Append corrections to training data to retrain model
+        if not st.session_state["corrections"].empty:
+            df = pd.concat([df, st.session_state["corrections"]], ignore_index=True)
+
+        models = train_and_evaluate(df)
 
         mse_val = mean_squared_error(models["y_test"], models["final_preds"])
         mae_val = mean_absolute_error(models["y_test"], models["final_preds"])
@@ -210,7 +215,6 @@ if uploaded_file:
         if models["explainer"]:
             with st.expander("Feature Importance (SHAP Summary)"):
                 shap_values = models["explainer"](models["x_test"])
-                #st.set_option("deprecation.showPyplotGlobalUse", False)
                 shap.summary_plot(shap_values, models["x_test"], show=False)
                 st.pyplot(plt.gcf())
                 plt.clf()
