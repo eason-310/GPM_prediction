@@ -162,8 +162,8 @@ if uploaded_file:
         for col in ["銷售成本(原料)", "銷售成本(人工)", "銷售成本(費用)", "銷售成本(報廢)", "銷售成本(其他)"]:
             inputs[col] = st.sidebar.number_input(col, value=0.0, format="%.3f")
 
-        linear_pred = 0.0
-        rf_pred = 0.0
+        linear_pred = None
+        rf_pred = None
 
         if models["linear_model"] and models["linear_features"]:
             df_input_lin = pd.DataFrame([{k: inputs[k] for k in models["linear_features"]}])
@@ -173,23 +173,18 @@ if uploaded_file:
             df_input_rf = pd.DataFrame([{k: inputs[k] for k in models["nonlinear_features"]}])
             rf_pred = models["rf_model"].predict(df_input_rf)[0]
 
-        final_input = np.array([[linear_pred, rf_pred]])
+        if linear_pred is not None and rf_pred is not None:
+            final_input = np.array([[linear_pred, rf_pred]])
+        elif linear_pred is not None:
+            final_input = np.array([[linear_pred]])
+        elif rf_pred is not None:
+            final_input = np.array([[rf_pred]])
+        else:
+            st.warning("No valid predictions — input features might be missing.")
+            st.stop()
+
         final_pred = models["meta_model"].predict(final_input)[0]
         st.subheader(f"Predicted 毛利率 (GPM): {final_pred:.4f}")
-
-        with st.expander("Feedback: Correct the predicted 毛利率 if needed"):
-                corrected = st.number_input("Corrected 毛利率 (leave as is if prediction is correct)", value=final_pred,
-                                            format="%.4f")
-                if st.button("Submit Correction"):
-                    new_data = {**inputs, "毛利率": corrected}
-                    st.session_state["corrections"] = pd.concat([
-                        st.session_state["corrections"],
-                        pd.DataFrame([new_data])
-                    ], ignore_index=True)
-                    st.success("Correction submitted! The model will be retrained with your input.")
-                    st.experimental_rerun()
-        else:
-            st.warning("No valid prediction — check model training or input.")
 
         if models["explainer"] is not None:
             with st.expander("Feature Importance (SHAP Summary)"):
