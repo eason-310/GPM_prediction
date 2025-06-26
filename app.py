@@ -16,6 +16,32 @@ warnings.filterwarnings("ignore")
 
 st.title("Hybrid Model for GPM Prediction")
 
+def color_metric(value, metric_type):
+    if metric_type == "mse" or metric_type == "mae":
+        if value < 0.01:
+            color = "green"
+        elif value < 0.1:
+            color = "orange"
+        else:
+            color = "red"
+    elif metric_type == "r2":
+        if value > 0.8:
+            color = "green"
+        elif value > 0.2:
+            color = "orange"
+        else:
+            color = "red"
+    elif metric_type == "cv_r2":
+        if value > 0.7:
+            color = "green"
+        elif value > 0.1:
+            color = "orange"
+        else:
+            color = "red"
+    else:
+        color = "black"
+    return f'<span style="color:{color}; font-weight:bold;">{value:.4f}</span>'
+
 @st.cache_data
 def load_excel(file):
     return pd.read_excel(file)
@@ -143,10 +169,10 @@ if uploaded_file:
         models = train_and_evaluate(df)
 
         st.subheader("Model Performance")
-        st.write(f"Mean Squared Error: {mean_squared_error(models['y_test'], models['final_preds']):.4f}")
-        st.write(f"Mean Absolute Error: {mean_absolute_error(models['y_test'], models['final_preds']):.4f}")
-        st.write(f"R² Score: {r2_score(models['y_test'], models['final_preds']):.4f}")
-        st.write(f"Cross-validated R² Score (5-fold): {models['cv_r2']:.4f}")
+        st.markdown(f"Mean Squared Error: {color_metric(mse_val, 'mse')}", unsafe_allow_html=True)
+        st.markdown(f"Mean Absolute Error: {color_metric(mae_val, 'mae')}", unsafe_allow_html=True)
+        st.markdown(f"R^2 Score: {color_metric(r2_val, 'r2')}", unsafe_allow_html=True)
+        st.markdown(f"Cross-Validated R^2 Score: {color_metric(cv_r2_val, 'cv_r2')}", unsafe_allow_html=True)
 
         st.sidebar.header("Input your costs to predict 毛利率 (GPM)")
         inputs = {}
@@ -194,28 +220,3 @@ if uploaded_file:
         st.error(f"Unexpected error: {e}")
 else:
     st.info("Please upload an Excel file to begin.")
-def color_metric(value, metric_type):
-    if metric_type == "mse" or metric_type == "mae":
-        if value < 0.01:
-            color = "green"
-        elif value < 0.1:
-            color = "orange"
-        else:
-            color = "red"
-    elif metric_type == "r2":
-        if value > 0.8:
-            color = "green"
-        elif value > 0.2:
-            color = "orange"
-        else:
-            color = "red"
-    elif metric_type == "cv_r2":
-        if value > 0.7:
-            color = "green"
-        elif value > 0.1:
-            color = "orange"
-        else:
-            color = "red"
-    else:
-        color = "black"
-    return f'<span style="color:{color}; font-weight:bold;">{value:.4f}</span>'
