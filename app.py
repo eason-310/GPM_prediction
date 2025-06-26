@@ -194,3 +194,6 @@ if uploaded_file:
         st.error(f"Unexpected error: {e}")
 else:
     st.info("Please upload an Excel file to begin.")
+
+df.corr(method="spearman")["毛利率"].sort_values(ascending=False)
+
