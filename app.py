@@ -115,7 +115,7 @@ if uploaded:
             st.markdown(f"MAE: {color_metric(mae,'mae')}", unsafe_allow_html=True)
             st.markdown(f"R²: {color_metric(r2,'r2')}", unsafe_allow_html=True)
             st.markdown(f"CV R²: {color_metric(cv_r2,'cv_r2')}", unsafe_allow_html=True)
-            st.write(f"Best XGBoost params: {m['meta_model'].get_params()}")
+            #st.write(f"Best XGBoost params: {m['meta_model'].get_params()}")
 
             st.sidebar.header("Enter feature values")
             inp = {f: st.sidebar.number_input(f, value=0.0) for f in features}
