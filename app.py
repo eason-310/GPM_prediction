@@ -68,7 +68,7 @@ def train_and_evaluate(df, feature_cols, target_col):
             xm, xv = x.iloc[tr], x.iloc[val]
             ym, yv = y.iloc[tr], y.iloc[val]
             lm2 = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_feats else None
-            rf2 = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100]))]) if nonlinear_feats else None
+            rf2 = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100))]) if nonlinear_feats else None
             if lm2: lm2.fit(xm[linear_feats], ym)
             if rf2: rf2.fit(xm[nonlinear_feats], ym)
             lp = lm2.predict(xv[linear_feats]) if lm2 else np.zeros(len(yv))
