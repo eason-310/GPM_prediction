@@ -169,8 +169,8 @@ if uploaded_file:
 
         st.subheader(f"Predicted 毛利率 (GPM): {final_pred:.4f}")
 
-        with st.expander("Feedback: Correct the predicted 毛利率 if needed"):
-            corrected = st.number_input("Corrected 毛利率", value=float(final_pred), format="%.4f")
+        with st.expander("Feedback: Correct the predicted GPM if needed"):
+            corrected = st.number_input("Corrected GPM", value=float(final_pred), format="%.4f")
             if st.button("Submit Correction"):
                 new_data = {**inputs, "毛利率": corrected}
                 st.session_state["corrections"] = pd.concat(
