@@ -43,17 +43,20 @@ def spearman_linearity_test(df, features, target, threshold=0.9):
 def train_and_evaluate(df, feature_cols, target_col):
     x, y = df[feature_cols].astype(float), df[target_col].astype(float)
     linear_feats, nonlinear_feats = spearman_linearity_test(df, feature_cols, target_col)
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    
+    x_train_full, x_test, y_train_full, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+    x_train, x_val, y_train, y_val = train_test_split(x_train_full, y_train_full, test_size=0.25, random_state=42)  # 60% train, 20% val, 20% test
 
     lm = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_feats else None
-    if lm: lm.fit(x_train[linear_feats], y_train)
-
     rf = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))]) if nonlinear_feats else None
+
+    if lm: lm.fit(x_train[linear_feats], y_train)
     if rf: rf.fit(x_train[nonlinear_feats], y_train)
 
-    lin_pred = lm.predict(x_test[linear_feats]) if lm else np.zeros(len(y_test))
-    rf_pred = rf.predict(x_test[nonlinear_feats]) if rf else np.zeros(len(y_test))
-    blend_train = np.vstack([lin_pred, rf_pred]).T
+    lin_pred_val = lm.predict(x_val[linear_feats]) if lm else np.zeros(len(y_val))
+    rf_pred_val = rf.predict(x_val[nonlinear_feats]) if rf else np.zeros(len(y_val))
+    blend_val = np.vstack([lin_pred_val, rf_pred_val]).T
 
     xgb = XGBRegressor(objective="reg:squarederror", random_state=42)
     param_grid = {
@@ -63,9 +66,13 @@ def train_and_evaluate(df, feature_cols, target_col):
     }
     cv = KFold(n_splits=3, shuffle=True, random_state=42)
     grid = GridSearchCV(xgb, param_grid, cv=cv, scoring="r2", n_jobs=-1)
-    grid.fit(blend_train, y_test)
+    grid.fit(blend_val, y_val)
     meta = grid.best_estimator_
-    final_preds = meta.predict(blend_train)
+
+    lin_pred_test = lm.predict(x_test[linear_feats]) if lm else np.zeros(len(y_test))
+    rf_pred_test = rf.predict(x_test[nonlinear_feats]) if rf else np.zeros(len(y_test))
+    blend_test = np.vstack([lin_pred_test, rf_pred_test]).T
+    final_preds = meta.predict(blend_test)
 
     def cv_blend(x, y):
         scores = []
@@ -85,7 +92,8 @@ def train_and_evaluate(df, feature_cols, target_col):
             scores.append(r2_score(yv, xgb2.predict(blend)))
         return np.mean(scores)
 
-    cv_r2 = cv_blend(x, y)
+    cv_r2 = cv_blend(x_train_full, y_train_full)
+
     explainer = shap.Explainer(rf.named_steps["regressor"], x_test) if rf else None
 
     return {
