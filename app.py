@@ -122,8 +122,6 @@ def train_and_evaluate(df, feature_cols, target_col):
         "y_test": y_test,
         "final_preds": final_preds,
         "cv_r2": cv_r2,
-        "spearman": spearman_corrs,
-        "mutual_info": mi,
     }
 
 if "corrections" not in st.session_state:
@@ -151,13 +149,6 @@ if uploaded:
             mae = mean_absolute_error(m["y_test"], m["final_preds"])
             r2 = r2_score(m["y_test"], m["final_preds"])
             cv_r2 = m["cv_r2"]
-
-            st.subheader("Feature Dependency Scores")
-            score_df = pd.DataFrame({
-                "Spearman Corr": m["spearman"],
-                "Mutual Info": m["mutual_info"]
-            }).sort_values("Mutual Info", ascending=False)
-            st.dataframe(score_df.style.background_gradient(axis=0))
 
             st.subheader("Performance")
             st.markdown(f"MSE: {color_metric(mse,'mse')}", unsafe_allow_html=True)
