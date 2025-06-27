@@ -48,9 +48,6 @@ def hybrid_linearity_test(df, features, target, spearman_threshold=0.7, mi_thres
 def train_and_evaluate(df, feature_cols, target_col):
     x, y = df[feature_cols], df[target_col]
     linear_feats, nonlinear_feats, spearman_corrs, mi = hybrid_linearity_test(df, feature_cols, target_col)
-    if not linear_feats and not nonlinear_feats:
-        st.error("No features passed the dependency thresholds.")
-        return None
 
     x_train_full, x_test, y_train_full, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
     x_train, x_val, y_train, y_val = train_test_split(x_train_full, y_train_full, test_size=0.25, random_state=42)
