@@ -33,7 +33,7 @@ def load_excel(file, transpose=False):
         df = df.reset_index(drop=True)
     return df
 
-def spearman_linearity_test(df, features, target, threshold=0.9):
+def spearman_linearity_test(df, features, target, threshold=0.8):
     linear_feats, nonlinear_feats = [], []
     for f in features:
         corr, _ = spearmanr(df[f], df[target])
