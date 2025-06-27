@@ -13,14 +13,15 @@ import warnings
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
-st.title("Hybrid Model Predictor")
+
+st.title("Hybrid Model Predictor (Spearman + Mutual Info)")
 
 def color_metric(value, metric_type):
     if metric_type in ["mse", "mae"]:
         color = "green" if value < 0.01 else "orange" if value < 0.1 else "red"
     else:
         color = "green" if value > 0.8 else "orange" if value > 0.2 else "red"
-    return f'<span style="color:{color}; font-weight:bold;">{value:.4f}</span>'
+    return f'{value:.4f}'
 
 @st.cache_data
 def load_excel(file, transpose=False):
@@ -29,7 +30,7 @@ def load_excel(file, transpose=False):
         df = df.T
         df.columns = df.iloc[0]
         df = df.drop(df.index[0])
-        df = df.reset_index(drop=True)
+    df = df.reset_index(drop=True)
     return df.astype(float)
 
 def hybrid_linearity_test(df, features, target, spearman_threshold=0.7, mi_threshold=0.1):
@@ -44,75 +45,88 @@ def hybrid_linearity_test(df, features, target, spearman_threshold=0.7, mi_thres
             nonlinear_feats.append(f)
     return linear_feats, nonlinear_feats, spearman_corrs, pd.Series(mi, index=features)
 
-def train_and_evaluate(df, feature_cols, target_col, use_extended_features=False):
+def train_and_evaluate(df, feature_cols, target_col):
     x, y = df[feature_cols], df[target_col]
-    x_train_full, x_test, y_train_full, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
-
-    linear_feats, nonlinear_feats, spearman_corrs, mi = hybrid_linearity_test(
-        pd.concat([x_train_full, y_train_full], axis=1), feature_cols, target_col
-    )
-
+    linear_feats, nonlinear_feats, spearman_corrs, mi = hybrid_linearity_test(df, feature_cols, target_col)
     if not linear_feats and not nonlinear_feats:
         st.error("No features passed the dependency thresholds.")
         return None
 
+    x_train_full, x_test, y_train_full, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    x_train, x_val, y_train, y_val = train_test_split(x_train_full, y_train_full, test_size=0.25, random_state=42)
+
     lm = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_feats else None
     rf = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))]) if nonlinear_feats else None
 
-    def get_stacked_features(x_data):
-        lin_pred = lm.predict(x_data[linear_feats]) if lm else np.zeros(len(x_data))
-        rf_pred = rf.predict(x_data[nonlinear_feats]) if rf else np.zeros(len(x_data))
-        base_preds = np.vstack([lin_pred, rf_pred]).T
-        if use_extended_features:
-            return np.hstack([x_data, base_preds])
-        return base_preds
+    if lm:
+        lm.fit(x_train[linear_feats], y_train)
+    if rf:
+        rf.fit(x_train[nonlinear_feats], y_train)
 
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    stack_train = []
-    meta_targets = []
-    for tr, val in kf.split(x_train_full):
-        xm, xv = x_train_full.iloc[tr], x_train_full.iloc[val]
-        ym, yv = y_train_full.iloc[tr], y_train_full.iloc[val]
+    lin_pred_val = lm.predict(x_val[linear_feats]) if lm else np.zeros(len(y_val))
+    rf_pred_val = rf.predict(x_val[nonlinear_feats]) if rf else np.zeros(len(y_val))
 
-        lm_cv = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_feats else None
-        rf_cv = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100))]) if nonlinear_feats else None
-        if lm_cv: lm_cv.fit(xm[linear_feats], ym)
-        if rf_cv: rf_cv.fit(xm[nonlinear_feats], ym)
-
-        lin_pred = lm_cv.predict(xv[linear_feats]) if lm_cv else np.zeros(len(xv))
-        rf_pred = rf_cv.predict(xv[nonlinear_feats]) if rf_cv else np.zeros(len(xv))
-        base_preds = np.vstack([lin_pred, rf_pred]).T
-        stack_features = np.hstack([xv, base_preds]) if use_extended_features else base_preds
-
-        stack_train.append(stack_features)
-        meta_targets.append(yv)
-
-    X_meta = np.vstack(stack_train)
-    y_meta = np.hstack(meta_targets)
+    blend_val = np.vstack([lin_pred_val, rf_pred_val]).T
 
     xgb = XGBRegressor(objective="reg:squarederror", random_state=42)
-    grid = GridSearchCV(xgb, {
-        "n_estimators": [50, 100],
-        "max_depth": [3, 5],
-        "learning_rate": [0.01, 0.1]
-    }, cv=3, scoring="r2", n_jobs=-1)
-    grid.fit(X_meta, y_meta)
-    meta_model = grid.best_estimator_
+    grid = GridSearchCV(
+        xgb,
+        {
+            "n_estimators": [50, 100],
+            "max_depth": [3, 5],
+            "learning_rate": [0.01, 0.1]
+        },
+        cv=3,
+        scoring="r2",
+        n_jobs=-1,
+    )
+    grid.fit(blend_val, y_val)
+    meta = grid.best_estimator_
 
-    if lm: lm.fit(x_train_full[linear_feats], y_train_full)
-    if rf: rf.fit(x_train_full[nonlinear_feats], y_train_full)
+    lin_pred_test = lm.predict(x_test[linear_feats]) if lm else np.zeros(len(y_test))
+    rf_pred_test = rf.predict(x_test[nonlinear_feats]) if rf else np.zeros(len(y_test))
+    blend_test = np.vstack([lin_pred_test, rf_pred_test]).T
 
-    X_test_meta = get_stacked_features(x_test)
-    final_preds = meta_model.predict(X_test_meta)
+    final_preds = meta.predict(blend_test)
 
-    cv_r2 = r2_score(y_meta, grid.predict(X_meta))
+    def cv_blend(x, y):
+        scores = []
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        for tr, val in kf.split(x):
+            xm, xv = x.iloc[tr], x.iloc[val]
+            ym, yv = y.iloc[tr], y.iloc[val]
+
+            lm2 = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_feats else None
+            rf2 = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100))]) if nonlinear_feats else None
+
+            if lm2:
+                lm2.fit(xm[linear_feats], ym)
+            if rf2:
+                rf2.fit(xm[nonlinear_feats], ym)
+
+            lp = lm2.predict(xv[linear_feats]) if lm2 else np.zeros(len(yv))
+            rp = rf2.predict(xv[nonlinear_feats]) if rf2 else np.zeros(len(yv))
+
+            blend = np.vstack([lp, rp]).T
+            xgb2 = XGBRegressor(**meta.get_params())
+            xgb2.fit(blend, yv)
+            scores.append(r2_score(yv, xgb2.predict(blend)))
+        return np.mean(scores)
+
+    cv_r2 = cv_blend(x_train_full, y_train_full)
 
     return {
-        "linear_model": lm, "rf_model": rf, "meta_model": meta_model,
-        "linear_features": linear_feats, "nonlinear_features": nonlinear_feats,
-        "x_test": x_test, "y_test": y_test, "final_preds": final_preds,
+        "linear_model": lm,
+        "rf_model": rf,
+        "meta_model": meta,
+        "linear_features": linear_feats,
+        "nonlinear_features": nonlinear_feats,
+        "x_test": x_test,
+        "y_test": y_test,
+        "final_preds": final_preds,
         "cv_r2": cv_r2,
-        "spearman": spearman_corrs, "mutual_info": mi
+        "spearman": spearman_corrs,
+        "mutual_info": mi,
     }
 
 if "corrections" not in st.session_state:
@@ -120,7 +134,6 @@ if "corrections" not in st.session_state:
 
 uploaded = st.file_uploader("Upload Excel", type=["xlsx"])
 transpose = st.checkbox("資料項目名稱在直行")
-use_extended = st.checkbox("Use Level-1 Extended Features", value=True)
 
 if uploaded:
     try:
@@ -133,9 +146,9 @@ if uploaded:
             if not st.session_state["corrections"].empty:
                 df = pd.concat([df, st.session_state["corrections"]], ignore_index=True)
 
-            m = train_and_evaluate(df, features, target, use_extended)
-
-            if m is None: st.stop()
+            m = train_and_evaluate(df, features, target)
+            if m is None:
+                st.stop()
 
             mse = mean_squared_error(m["y_test"], m["final_preds"])
             mae = mean_absolute_error(m["y_test"], m["final_preds"])
@@ -157,18 +170,18 @@ if uploaded:
 
             st.sidebar.header("Enter feature values")
             inp = {f: st.sidebar.number_input(f, value=0.0) for f in features}
+
             lp = m["linear_model"].predict(pd.DataFrame([inp]))[0] if m["linear_model"] else 0.0
             rp = m["rf_model"].predict(pd.DataFrame([inp]))[0] if m["rf_model"] else 0.0
-            meta_input = np.array([[*inp.values(), lp, rp]]) if use_extended else np.array([[lp, rp]])
-            final = m["meta_model"].predict(meta_input)[0]
+            final = m["meta_model"].predict(np.array([[lp, rp]]))[0]
+
             st.subheader(f"Predicted {target}: **{final:.4f}**")
 
             with st.expander("Submit correction"):
                 corrected = st.number_input("Corrected value", value=float(final))
                 if st.button("Submit"):
                     new = {**inp, target: corrected}
-                    st.session_state["corrections"] = pd.concat(
-                        [st.session_state["corrections"], pd.DataFrame([new])], ignore_index=True)
+                    st.session_state["corrections"] = pd.concat([st.session_state["corrections"], pd.DataFrame([new])], ignore_index=True)
                     st.success("Correction saved, retraining now...")
                     st.experimental_rerun()
         else:
