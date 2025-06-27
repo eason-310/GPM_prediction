@@ -43,6 +43,10 @@ def spearman_linearity_test(df, features, target, threshold=0.7):
 def train_and_evaluate(df, feature_cols, target_col):
     x, y = df[feature_cols].astype(float), df[target_col].astype(float)
     linear_feats, nonlinear_feats = spearman_linearity_test(df, feature_cols, target_col)
+
+    if not linear_feats and not nonlinear_feats:
+        st.error("No features passed the Spearman correlation threshold")
+        return None
     
     x_train_full, x_test, y_train_full, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
