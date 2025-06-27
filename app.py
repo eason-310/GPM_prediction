@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
 
-st.title("Hybrid Model Predictor (Spearman + Mutual Info)")
+st.title("Hybrid Model Predictor (")
 
 def color_metric(value, metric_type):
     if metric_type in ["mse", "mae"]:
