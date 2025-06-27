@@ -158,13 +158,6 @@ if uploaded:
             r2 = r2_score(m["y_test"], m["final_preds"])
             cv_r2 = m["cv_r2"]
 
-            st.subheader("Feature Dependency Scores")
-            score_df = pd.DataFrame({
-                "Spearman Corr": m["spearman"],
-                "Mutual Info": m["mutual_info"]
-            }).sort_values("Mutual Info", ascending=False)
-            st.dataframe(score_df.style.background_gradient(axis=0))
-
             st.subheader("Performance")
             st.markdown(f"MSE: {color_metric(mse,'mse')}", unsafe_allow_html=True)
             st.markdown(f"MAE: {color_metric(mae,'mae')}", unsafe_allow_html=True)
@@ -188,13 +181,6 @@ if uploaded:
                     st.session_state["corrections"] = pd.concat([st.session_state["corrections"], pd.DataFrame([new])], ignore_index=True)
                     st.success("Correction saved, retraining now...")
                     st.experimental_rerun()
-
-            if m["explainer"]:
-                with st.expander("SHAP Summary"):
-                    shap_values = m["explainer"](m["x_test"][m["nonlinear_features"]])
-                    shap.summary_plot(shap_values, m["x_test"][m["nonlinear_features"]], show=False)
-                    st.pyplot(plt.gcf())
-                    plt.clf()
 
         else:
             st.info("Choose at least one feature.")
