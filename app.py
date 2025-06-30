@@ -106,7 +106,10 @@ def train_and_evaluate(df, feature_cols, target_col):
 
     explainer = None
     if rf and len(x_test) > 5:
-        explainer = shap.Explainer(rf.named_steps["regressor"], x_test[nonlinear_feats])
+        try:
+            explainer = shap.Explainer(rf.named_steps["regressor"], x_test[nonlinear_feats])
+        except Exception as e:
+            st.warning(f"SHAP could not be computed: {e}")
 
     return {
         "linear_model": lm,
