@@ -32,7 +32,9 @@ def load_excel(file, transpose=False):
         df.columns = df.iloc[0]
         df = df.drop(df.index[0])
     df = df.reset_index(drop=True)
-    return df.astype(float)
+    df = df.select_dtypes(include=["number"]).dropna()
+    return df
+
 
 def hybrid_linearity_test(df, features, target, spearman_threshold=0.3, mi_threshold=0.01):
     linear_feats = []
