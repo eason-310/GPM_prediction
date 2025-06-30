@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
 
-st.title("Hybrid Model Predictor1")
+st.title("Hybrid Model Predictor")
 
 def color_metric(value, metric_type, y_true=None):
     if y_true is not None:
