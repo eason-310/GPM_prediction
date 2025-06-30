@@ -104,13 +104,6 @@ def train_and_evaluate(df, feature_cols, target_col):
             return np.mean(scores)
         cv_r2 = cv_blend(x_train_full, y_train_full)
 
-    explainer = None
-    if rf and len(x_test) > 5:
-        try:
-            explainer = shap.Explainer(rf.named_steps["regressor"], x_test[nonlinear_feats])
-        except Exception as e:
-            st.warning(f"SHAP could not be computed: {e}")
-
     return {
         "linear_model": lm,
         "rf_model": rf,
@@ -121,7 +114,6 @@ def train_and_evaluate(df, feature_cols, target_col):
         "y_test": y_test,
         "final_preds": final_preds,
         "cv_r2": cv_r2,
-        "explainer": explainer,
         "spearman": spearman_corrs,
         "mutual_info": mi,
     }
