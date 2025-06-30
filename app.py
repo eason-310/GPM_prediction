@@ -154,8 +154,8 @@ if uploaded:
             cv_r2 = m["cv_r2"]
 
             st.subheader("Performance")
-            st.markdown(f"MSE: {color_metric(mse,'mse')}", unsafe_allow_html=True)
-            st.markdown(f"MAE: {color_metric(mae,'mae')}", unsafe_allow_html=True)
+            st.markdown(f"MSE: {color_metric(mse,'mse', m['y_test'])}", unsafe_allow_html=True)
+            st.markdown(f"MAE: {color_metric(mae,'mae', m['y_test'])}", unsafe_allow_html=True)
             st.markdown(f"R²: {color_metric(r2,'r2')}", unsafe_allow_html=True)
             st.markdown(f"CV R²: {color_metric(cv_r2,'cv_r2')}", unsafe_allow_html=True)
 
