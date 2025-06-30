@@ -189,4 +189,4 @@ if uploaded:
         st.error(f"Error: {e}")
 
 else:
-    st.info("Upload an Excel file to begin.")
+    st.info("請上傳Excel檔案以開始")
