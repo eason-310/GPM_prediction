@@ -77,33 +77,36 @@ def train_and_evaluate(df, feature_cols, target_col):
 
     final_preds = meta.predict(blend_test)
 
-    def cv_blend(x, y):
-        scores = []
-        kf = KFold(n_splits=5, shuffle=True, random_state=42)
-        for tr, val in kf.split(x):
-            xm, xv = x.iloc[tr], x.iloc[val]
-            ym, yv = y.iloc[tr], y.iloc[val]
+    cv_r2 = None
+    if len(x_train_full) >= 5:
+        def cv_blend(x, y):
+            scores = []
+            kf = KFold(n_splits=5, shuffle=True, random_state=42)
+            for tr, val in kf.split(x):
+                xm, xv = x.iloc[tr], x.iloc[val]
+                ym, yv = y.iloc[tr], y.iloc[val]
 
-            lm2 = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_feats else None
-            rf2 = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100))]) if nonlinear_feats else None
+                lm2 = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())]) if linear_feats else None
+                rf2 = Pipeline([("scaler", StandardScaler()), ("regressor", RandomForestRegressor(n_estimators=100))]) if nonlinear_feats else None
 
-            if lm2:
-                lm2.fit(xm[linear_feats], ym)
-            if rf2:
-                rf2.fit(xm[nonlinear_feats], ym)
+                if lm2:
+                    lm2.fit(xm[linear_feats], ym)
+                if rf2:
+                    rf2.fit(xm[nonlinear_feats], ym)
 
-            lp = lm2.predict(xv[linear_feats]) if lm2 else np.zeros(len(yv))
-            rp = rf2.predict(xv[nonlinear_feats]) if rf2 else np.zeros(len(yv))
+                lp = lm2.predict(xv[linear_feats]) if lm2 else np.zeros(len(yv))
+                rp = rf2.predict(xv[nonlinear_feats]) if rf2 else np.zeros(len(yv))
 
-            blend = np.vstack([lp, rp]).T
-            xgb2 = XGBRegressor(**meta.get_params())
-            xgb2.fit(blend, yv)
-            scores.append(r2_score(yv, xgb2.predict(blend)))
-        return np.mean(scores)
+                blend = np.vstack([lp, rp]).T
+                xgb2 = XGBRegressor(**meta.get_params())
+                xgb2.fit(blend, yv)
+                scores.append(r2_score(yv, xgb2.predict(blend)))
+            return np.mean(scores)
+        cv_r2 = cv_blend(x_train_full, y_train_full)
 
-    cv_r2 = cv_blend(x_train_full, y_train_full)
-
-    explainer = shap.Explainer(rf.named_steps["regressor"], x_test[nonlinear_feats]) if rf else None
+    explainer = None
+    if rf and len(x_test) > 5:
+        explainer = shap.Explainer(rf.named_steps["regressor"], x_test[nonlinear_feats])
 
     return {
         "linear_model": lm,
