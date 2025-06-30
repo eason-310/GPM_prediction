@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split, KFold, GridSearchCV
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
@@ -32,9 +32,7 @@ def load_excel(file, transpose=False):
         df.columns = df.iloc[0]
         df = df.drop(df.index[0])
     df = df.reset_index(drop=True)
-    df = df.select_dtypes(include=["number"]).dropna()
-    return df
-
+    return df.astype(float)
 
 def hybrid_linearity_test(df, features, target, spearman_threshold=0.3, mi_threshold=0.01):
     linear_feats = []
@@ -70,20 +68,8 @@ def train_and_evaluate(df, feature_cols, target_col):
     rf_pred_val = rf.predict(x_val[nonlinear_feats]) if rf else np.zeros(len(y_val))
     blend_val = np.vstack([lin_pred_val, rf_pred_val]).T
 
-    xgb = XGBRegressor(objective="reg:squarederror", random_state=42)
-    grid = GridSearchCV(
-        xgb,
-        {
-            "n_estimators": [50, 100],
-            "max_depth": [3, 5],
-            "learning_rate": [0.01, 0.1]
-        },
-        cv=3,
-        scoring="r2",
-        n_jobs=-1,
-    )
-    grid.fit(blend_val, y_val)
-    meta = grid.best_estimator_
+    meta = XGBRegressor(objective="reg:squarederror", random_state=42)
+    meta.fit(blend_val, y_val)
 
     lin_pred_test = lm.predict(x_test[linear_feats]) if lm else np.zeros(len(y_test))
     rf_pred_test = rf.predict(x_test[nonlinear_feats]) if rf else np.zeros(len(y_test))
