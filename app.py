@@ -54,7 +54,6 @@ def hybrid_linearity_test(df, features, target, spearman_threshold=0.3, mi_thres
         elif mi[i] >= mi_threshold:
             nonlinear_feats.append(f)
     if not linear_feats and not nonlinear_feats:
-        #st.warning("No features passed thresholds. Using all features as nonlinear.")
         nonlinear_feats = features
     return linear_feats, nonlinear_feats, spearman_corrs, pd.Series(mi, index=features)
 
