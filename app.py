@@ -22,7 +22,7 @@ def color_metric(value, metric_type):
         color = "green" if value < 0.01 else "orange" if value < 0.1 else "red"
     else:
         color = "green" if value > 0.8 else "orange" if value > 0.2 else "red"
-    return f'{value:.4f}'
+    return f'<span style="color:{color}; font-weight:bold;">{value:.4f}</span>'
 
 @st.cache_data
 def load_excel(file, transpose=False):
