@@ -17,11 +17,20 @@ warnings.filterwarnings("ignore")
 
 st.title("Hybrid Model Predictor")
 
-def color_metric(value, metric_type):
-    if metric_type in ["mse", "mae"]:
-        color = "green" if value < 0.01 else "orange" if value < 0.1 else "red"
+def color_metric(value, metric_type, y_true=None):
+    if y_true is not None:
+        std = np.std(y_true)
+        if metric_type == "mse":
+            ratio = value / (std**2)
+            color = "green" if ratio < 0.1 else "orange" if ratio < 0.5 else "red"
+        elif metric_type == "mae":
+            ratio = value / std
+            color = "green" if ratio < 0.3 else "orange" if ratio < 0.7 else "red"
+        else:
+            color = "green" if value > 0.8 else "orange" if value > 0.5 else "red"
     else:
-        color = "green" if value > 0.8 else "orange" if value > 0.2 else "red"
+        color = "green" if value > 0.8 else "orange" if value > 0.5 else "red"
+
     return f'<span style="color:{color}; font-weight:bold;">{value:.4f}</span>'
 
 @st.cache_data
